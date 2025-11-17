@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./gradlew test --tests \"*Test\" --continue)",
+      "Bash(./gradlew.bat test --tests \"*ServiceTest\")",
+      "Bash(cat build/reports/tests/test/classes/cue.edu.co.eventcore.integration.EventIntegrationTest.html)",
+      "Bash(cat build/reports/tests/test/classes/cue.edu.co.eventcore.e2e.EventE2ETest.html)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

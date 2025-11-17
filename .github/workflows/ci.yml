@@ -1,0 +1,113 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ master, main, develop ]
+  pull_request:
+    branches: [ master, main, develop ]
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: eventcore
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Install dependencies
+        run: ./gradlew build -x test --no-daemon
+
+      - name: Run unit tests
+        run: ./gradlew test --no-daemon
+        env:
+          SPRING_PROFILES_ACTIVE: test
+
+      - name: Run integration tests
+        run: ./gradlew test --tests "*IntegrationTest" --no-daemon
+        env:
+          SPRING_PROFILES_ACTIVE: test
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/eventcore
+          SPRING_DATASOURCE_USERNAME: postgres
+          SPRING_DATASOURCE_PASSWORD: postgres
+          SPRING_REDIS_HOST: localhost
+          SPRING_REDIS_PORT: 6379
+
+      - name: Run E2E tests
+        run: ./gradlew test --tests "*E2ETest" --no-daemon
+        env:
+          SPRING_PROFILES_ACTIVE: test
+
+      - name: Run static code analysis - SpotBugs
+        run: ./gradlew spotbugsMain --no-daemon
+        continue-on-error: false
+
+      - name: Run static code analysis - PMD
+        run: ./gradlew pmdMain --no-daemon
+        continue-on-error: false
+
+      - name: Run static code analysis - Checkstyle
+        run: ./gradlew checkstyleMain --no-daemon
+        continue-on-error: false
+
+      - name: Generate test coverage report
+        run: ./gradlew jacocoTestReport --no-daemon
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: build/test-results/
+
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports
+          path: build/reports/
+
+      - name: Print success message
+        if: success()
+        run: echo "OK"
+
+      - name: Build failed
+        if: failure()
+        run: |
+          echo "Build or tests failed!"
+          exit 1

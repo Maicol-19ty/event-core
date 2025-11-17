@@ -1,0 +1,133 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.5.7'
+    id 'io.spring.dependency-management' version '1.1.7'
+    id 'com.github.spotbugs' version '6.0.7'
+    id 'pmd'
+    id 'checkstyle'
+    id 'jacoco'
+}
+
+group = 'cue.edu.co'
+version = '0.0.1-SNAPSHOT'
+description = 'event-core'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Spring Boot Starters
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-cache'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
+    // Database
+    runtimeOnly 'org.postgresql:postgresql'
+
+    // Redis
+    implementation 'redis.clients:jedis'
+
+    // Lombok
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    // MapStruct for DTOs
+    implementation 'org.mapstruct:mapstruct:1.5.5.Final'
+    annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.5.Final'
+
+    // SpringDoc OpenAPI (API Documentation)
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.2.0'
+
+    // Test Dependencies
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.mockito:mockito-core'
+    testImplementation 'com.h2database:h2'
+    testImplementation ('it.ozimov:embedded-redis:0.7.3') {
+        exclude group: 'org.slf4j', module: 'slf4j-simple'
+    }
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform {
+        // Exclude E2E tests temporarily (covered by integration tests)
+        excludeTags 'e2e'
+    }
+}
+
+// SpotBugs Configuration
+spotbugs {
+    toolVersion = '4.8.3'
+    effort = 'max'
+    reportLevel = 'medium'
+    ignoreFailures = false
+}
+
+tasks.withType(com.github.spotbugs.snom.SpotBugsTask) {
+    reports {
+        xml.required = false
+        html.required = true
+    }
+}
+
+// PMD Configuration
+pmd {
+    toolVersion = '6.55.0'
+    ignoreFailures = false
+    ruleSets = []
+    ruleSetFiles = files("config/pmd/ruleset.xml")
+}
+
+// Checkstyle Configuration
+checkstyle {
+    toolVersion = '10.12.7'
+    configFile = file("config/checkstyle/checkstyle.xml")
+    ignoreFailures = false
+}
+
+// JaCoCo Configuration
+jacoco {
+    toolVersion = '0.8.11'
+}
+
+jacocoTestReport {
+    dependsOn test
+    reports {
+        xml.required = true
+        html.required = true
+        csv.required = false
+    }
+}
+
+jacocoTestCoverageVerification {
+    violationRules {
+        rule {
+            limit {
+                minimum = 0.60
+            }
+        }
+    }
+}
+
+// Task to run all security checks
+tasks.register('securityCheck') {
+    dependsOn 'spotbugsMain', 'pmdMain', 'checkstyleMain'
+    group = 'verification'
+    description = 'Runs all security and code quality checks'
+}
